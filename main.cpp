@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <queue>
 #include <array>
+#include <climits>
 
 using namespace std;
 
@@ -20,11 +21,16 @@ struct Position {
 
     Position(unsigned int row, unsigned int col) : row(row), col(col) {}
 
-    bool operator==(const Position& other) {
+    Position(const Position& other) = default;
+    Position(Position&& other) noexcept = default;
+
+    Position& operator=(const Position& other) = default;
+
+    bool operator==(const Position& other) const {
         return row == other.row and col == other.col;
     }
 
-    bool operator!=(const Position& other) {
+    bool operator!=(const Position& other) const {
         return !(*this == other);
     }
 };
@@ -38,13 +44,27 @@ enum class Direction {
 
 struct PathCombinations {
     static constexpr size_t Size = 4;
-    unsigned tab[Size][Size] = {};
+    unsigned tab[Size][Size] = {
+            {UINT_MAX,UINT_MAX,UINT_MAX,UINT_MAX},
+            {UINT_MAX,UINT_MAX,UINT_MAX,UINT_MAX},
+            {UINT_MAX,UINT_MAX,UINT_MAX,UINT_MAX},
+            {UINT_MAX,UINT_MAX,UINT_MAX,UINT_MAX}
+    };
 };
 
 struct Path {
     unsigned mirrorsUsed;
     Direction direction;
     Position current;
+
+    Path(unsigned int mirrorsUsed, Direction direction, const Position &current) : mirrorsUsed(mirrorsUsed),
+                                                                                   direction(direction),
+                                                                                   current(current) {}
+
+    Path(const Path& other) = default;
+    Path(Path&& other) noexcept = default;
+
+    Path& operator=(const Path& other) = default;
 
     bool operator>(const Path& other) const {
         return mirrorsUsed > other.mirrorsUsed;
@@ -59,6 +79,8 @@ struct MazeDescription {
     MazeDescription(const vector<vector<char>> &maze, const vector<Position> &crystalPositions, unsigned int mirrors)
             : maze(maze), crystalPositions(crystalPositions), mirrors(mirrors) {}
 
+    MazeDescription(MazeDescription&& other) noexcept = default;
+
     size_t getHeight() const {
         return maze.size();
     }
@@ -69,13 +91,19 @@ struct MazeDescription {
 };
 
 
-vector<Path> getPathToNeighbours(const Path &path, const MazeDescription &description);
+vector<Path> getPathToNeighbours(const Path &path, const MazeDescription &description, bool isFieldCrystal);
 
 bool isCrystal(const Position &position, const MazeDescription &description);
 
 Position advancePos(Position position, Direction direction);
 
 bool needsTurning(Direction direction, Direction direction1);
+
+size_t indexOfCrystal(const vector<Position> &positions, const Position &toFind);
+
+Direction oppositeDirection(Direction direction);
+
+vector<Direction> getPossibleTurns(const MazeDescription &description, const Position &position);
 
 template<class T>
 vector<vector<T>> get2DVector(size_t width, size_t height) {
@@ -86,68 +114,90 @@ vector<vector<T>> get2DVector(size_t width, size_t height) {
     return tmp;
 }
 
-vector<Direction> getPossibleOutDirections(const MazeDescription& mazeDescription, Position position) {
-    const auto& maze = mazeDescription.maze;
+vector<Direction> getPossibleStartDirections(const MazeDescription &mazeDescription, Position position) {
+    // To have possible out direction the corresponding field on the other side has to be free as well (except for the starting point)
+    auto& maze = mazeDescription.maze;
     auto width = mazeDescription.getWidth();
     auto height = mazeDescription.getHeight();
 
     vector<Direction> result;
     result.reserve(4);
 
-    if (position.row != 0 and maze.at(position.row - 1).at(position.col) != Sym::Block) {
-        result.push_back(Direction::Up);
-    }
+//    if(position.row == 1 and position.col == 0) {
+//        result.push_back(Direction::Right);
+//    }
 
-    if (position.row + 1 != height and maze.at(position.row + 1).at(position.col) != Sym::Block) {
+    if (position.row != 0 and maze.at(position.row - 1).at(position.col) != Sym::Block and
+            position.row + 1 != height and maze.at(position.row + 1).at(position.col) != Sym::Block) {
+        result.push_back(Direction::Up);
         result.push_back(Direction::Down);
     }
 
-    if (position.col != 0 and maze.at(position.row).at(position.col - 1) != Sym::Block) {
+    if (position.col != 0 and maze.at(position.row).at(position.col - 1) != Sym::Block and
+            position.col + 1 != width and maze.at(position.row).at(position.col + 1) != Sym::Block) {
         result.push_back(Direction::Left);
-    }
-
-    if (position.col + 1 != width and maze.at(position.row).at(position.col + 1) != Sym::Block) {
         result.push_back(Direction::Right);
     }
 
     return result;
 }
 
-void findShortestPaths(const MazeDescription &description) {
+vector<vector<PathCombinations>> findShortestPaths(const MazeDescription &description) {
     auto size = description.crystalPositions.size() + 1; // includes starting point
     auto shortestPaths = get2DVector<PathCombinations>(size, size);
 
 
     for(size_t i = 0; i< size; ++i) {
-        const auto& start = i < description.crystalPositions.size() ? description.crystalPositions[i] : Position{1, 0};
+        Position start(-1, -1);
+        vector<Direction> startDirections;
+        if (i < description.crystalPositions.size()) {
+            start = description.crystalPositions[i];
+            startDirections = getPossibleStartDirections(description, start);
+        }
+        else {
+            start = Position{1, 0};
+            startDirections.push_back(Direction::Left);
+        }
 
-        auto outDirections = getPossibleOutDirections(description, start);
-
-        for(auto direction: outDirections) {
+        for(auto direction: startDirections) {
                 priority_queue<Path, vector<Path>, greater<Path>> toVisit;
                 auto visited = get2DVector<bool>(description.getHeight(), description.getWidth());
 
                 toVisit.push(Path{0, direction, start});
-                visited[start.row][start.col] = true;
+//                visited[start.row][start.col] = true;
                 while(!toVisit.empty()) {
                     auto current = toVisit.top();
                     toVisit.pop();
+                    visited[current.current.row][current.current.col] = true;
 
-                    if(current.current != start and isCrystal(current.current, description)) {
-                        auto& currentShortest = shortestPaths[i][description.crystalPositions.find(current.current)][direction][current.direction];
+
+                    bool isFieldCrystal = isCrystal(current.current, description);
+                    if(current.current != start and isFieldCrystal) {
+                        auto& currentShortest = shortestPaths[i][indexOfCrystal(description.crystalPositions, current.current)].tab[(size_t)direction][(size_t)current.direction];
                         if (current.mirrorsUsed < currentShortest) {
                             currentShortest = current.mirrorsUsed;
                         }
                     }
 
-                    auto neighbours = getPathToNeighbours(current, description);
+                    auto neighbours = getPathToNeighbours(current, description, isFieldCrystal);
                     for_each(neighbours.begin(), neighbours.end(), [&toVisit, &visited] (const Path& path) mutable {
-                        toVisit.push(path);
-                        visited[path.current.row][path.current.col] = true;
+                        if(not visited[path.current.row][path.current.col]) {
+                            toVisit.push(path);
+//                            visited[path.current.row][path.current.col] = true;
+                        }
                     });
                 }
         }
     }
+    return shortestPaths;
+}
+
+size_t indexOfCrystal(const vector<Position> &positions, const Position &toFind) {
+    size_t i = 0;
+    while(i < positions.size() and toFind != positions[i]) {
+        ++i;
+    }
+    return i;
 }
 
 bool isCrystal(const Position &position, const MazeDescription &description) {
@@ -155,10 +205,10 @@ bool isCrystal(const Position &position, const MazeDescription &description) {
     return description.maze[position.row][position.col] == Sym::Crystal;
 }
 
-vector<Path> getPathToNeighbours(const Path &path, const MazeDescription &description) {
+vector<Path> getPathToNeighbours(const Path &path, const MazeDescription &description, bool isFieldCrystal) {
     vector<Path> neighbours;
-
-    auto out = getPossibleOutDirections(description, path.current);
+    neighbours.reserve(4);
+    auto out = getPossibleTurns(description, path.current);
 
     for(auto direction: out) {
         if(direction != path.direction) {
@@ -166,10 +216,46 @@ vector<Path> getPathToNeighbours(const Path &path, const MazeDescription &descri
             if(needsTurning(direction, path.direction)) {
                 ++cost;
             }
-            neighbours.emplace_back(path.mirrorsUsed + cost, direction, advancePos(path.current, direction));
+            if(not isFieldCrystal or cost == 0) {
+                neighbours.emplace_back(path.mirrorsUsed + cost, oppositeDirection(direction), advancePos(path.current, direction));
+            }
         }
     }
     return neighbours;
+}
+
+vector<Direction> getPossibleTurns(const MazeDescription &description, const Position &position) {
+    auto& maze = description.maze;
+    auto width = description.getWidth();
+    auto height = description.getHeight();
+
+    vector<Direction> result;
+    result.reserve(4);
+
+    if (position.row != 0 and maze.at(position.row - 1).at(position.col) != Sym::Block) {
+        result.push_back(Direction::Up);
+    }
+    if (position.row + 1 != height and maze.at(position.row + 1).at(position.col) != Sym::Block) {
+        result.push_back(Direction::Down);
+    }
+    if (position.col != 0 and maze.at(position.row).at(position.col - 1) != Sym::Block) {
+        result.push_back(Direction::Left);
+    }
+    if (position.col + 1 != width and maze.at(position.row).at(position.col + 1) != Sym::Block) {
+        result.push_back(Direction::Right);
+    }
+
+    return result;
+}
+
+Direction oppositeDirection(Direction direction) {
+    switch (direction) {
+        case Direction::Up: return Direction::Down;
+        case Direction::Down: return Direction::Up;
+        case Direction::Left: return Direction::Right;
+        case Direction::Right: return Direction::Left;
+    }
+    throw runtime_error("tood");
 }
 
 bool needsTurning(Direction direction, Direction direction1) {
@@ -180,8 +266,8 @@ bool needsTurning(Direction direction, Direction direction1) {
         case Direction::Left:
         case Direction::Right:
             return direction1 == Direction::Up or direction1 == Direction::Down;
-
     }
+    throw runtime_error("Invalid direction in needsTurning: " + to_string((int)direction) + ", " + to_string((int)direction1));
 }
 
 Position advancePos(Position position, Direction direction) {
@@ -195,13 +281,20 @@ Position advancePos(Position position, Direction direction) {
         case Direction::Right:
             return {position.row, position.col + 1};
     }
+    throw runtime_error("Invalid direction in advancePos: " + to_string((int)direction));
 }
 
 void printSolution(const MazeDescription& mazeDescription) {
+    char i = '0';
     const auto& maze = mazeDescription.maze;
     cout << maze.size() << ' ' << maze[0].size() << '\n' << mazeDescription.mirrors << '\n';
     for(const auto& row: maze) {
         for(const auto& el: row) {
+            if (el == '*') {
+                cout << i;
+                ++i;
+            }
+            else
             cout << el;
         }
         cout << '\n';
@@ -214,7 +307,7 @@ MazeDescription readInput() {
 
     cin >> height >> width >> mirrors;
 
-    auto maze = get2DVector<char>(height, width);
+    auto maze = get2DVector<char>(width, height);
     vector<Position> crystalPositions;
     crystalPositions.reserve(mirrors); // it's just a guess
 
@@ -234,8 +327,18 @@ MazeDescription readInput() {
 
 int main() {
     auto mazeDescription = readInput();
-    findShortestPaths(mazeDescription);
-
+    auto shortestPaths = findShortestPaths(mazeDescription);
+    for(size_t i =0; i<shortestPaths.size(); ++i) {
+        for(size_t j=0; j<shortestPaths[i].size(); ++j) {
+            for(size_t k =0; k< 4; ++k) {
+                for(size_t l =0; l<4; ++l) {
+                    if(shortestPaths[i][j].tab[k][l] != UINT_MAX) {
+                        cout << "C1 " << i << " C2: " << j << " D1: " << k << " D2: " << l << " val: " << shortestPaths[i][j].tab[k][l] << endl;
+                    }
+                }
+            }
+        }
+    }
 
     cout << "Done\n";
     printSolution(mazeDescription);
