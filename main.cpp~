@@ -83,7 +83,7 @@ struct Path {
     Position current;
     vector<MirrorPos> mirrorsPoses;
 
-    Path(unsigned int mirrorsUsed, Direction direction, const Position &current, const vector<MirrorPos> &mirrorPoses = std::vector<MirrorPos>())
+    Path(unsigned int mirrorsUsed, Direction direction, const Position &current, const vector<MirrorPos> &mirrorPoses = {})
             : mirrorsUsed(mirrorsUsed),
               direction(direction),
               current(current),
