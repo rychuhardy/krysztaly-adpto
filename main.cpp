@@ -4,6 +4,7 @@
 #include <queue>
 #include <array>
 #include <climits>
+#include <set>
 
 using namespace std;
 
@@ -88,6 +89,10 @@ struct MazeDescription {
     size_t getWidth() const {
         return maze[0].size();
     }
+
+    unsigned maxMirrors() const {
+        return mirrors;
+    }
 };
 
 
@@ -104,6 +109,11 @@ size_t indexOfCrystal(const vector<Position> &positions, const Position &toFind)
 Direction oppositeDirection(Direction direction);
 
 vector<Direction> getPossibleTurns(const MazeDescription &description, const Position &position);
+
+void combinePaths(const MazeDescription &description, const vector<vector<PathCombinations>> &vector);
+
+void expandPath(const vector<vector<PathCombinations>>  &pathCombinations, set<size_t> remainingCrystals, size_t lastPoint, size_t cost,
+                Direction lastDirection, unsigned maxCost);
 
 template<class T>
 vector<vector<T>> get2DVector(size_t width, size_t height) {
@@ -161,7 +171,7 @@ vector<vector<PathCombinations>> findShortestPaths(const MazeDescription &descri
 
         for(auto direction: startDirections) {
                 priority_queue<Path, vector<Path>, greater<Path>> toVisit;
-                auto visited = get2DVector<bool>(description.getHeight(), description.getWidth());
+                auto visited = get2DVector<bool>(description.getWidth(), description.getHeight());
 
                 toVisit.push(Path{0, direction, start});
 //                visited[start.row][start.col] = true;
@@ -180,8 +190,8 @@ vector<vector<PathCombinations>> findShortestPaths(const MazeDescription &descri
                     }
 
                     auto neighbours = getPathToNeighbours(current, description, isFieldCrystal);
-                    for_each(neighbours.begin(), neighbours.end(), [&toVisit, &visited] (const Path& path) mutable {
-                        if(not visited[path.current.row][path.current.col]) {
+                    for_each(neighbours.begin(), neighbours.end(), [&toVisit, &visited, &description] (const Path& path) mutable {
+                        if(not visited[path.current.row][path.current.col] and path.mirrorsUsed <= description.maxMirrors()) {
                             toVisit.push(path);
 //                            visited[path.current.row][path.current.col] = true;
                         }
@@ -325,6 +335,16 @@ MazeDescription readInput() {
     return MazeDescription{maze, crystalPositions, mirrors};
 }
 
+string directionToString(size_t val) {
+    switch(val) {
+        case 0: return "Up";
+        case 1: return "Down";
+        case 2: return "Left";
+        case 3: return "Right";
+    }
+    return "No such direction";
+}
+
 int main() {
     auto mazeDescription = readInput();
     auto shortestPaths = findShortestPaths(mazeDescription);
@@ -333,12 +353,14 @@ int main() {
             for(size_t k =0; k< 4; ++k) {
                 for(size_t l =0; l<4; ++l) {
                     if(shortestPaths[i][j].tab[k][l] != UINT_MAX) {
-                        cout << "C1 " << i << " C2: " << j << " D1: " << k << " D2: " << l << " val: " << shortestPaths[i][j].tab[k][l] << endl;
+                        cout << "C1 " << i << " C2: " << j << " D1: " << directionToString(k) << " D2: " << directionToString(l) << " val: " << shortestPaths[i][j].tab[k][l] << endl;
                     }
                 }
             }
         }
     }
+
+    combinePaths(mazeDescription, shortestPaths);
 
     cout << "Done\n";
     printSolution(mazeDescription);
@@ -346,4 +368,48 @@ int main() {
 //    cin >> noskipws >> c;
 //    cout << "X" << c << "X" << endl;
     return 0;
+}
+
+bool pathFound;
+
+void combinePaths(const MazeDescription &description, const vector<vector<PathCombinations>> &pathCombinations) {
+    size_t lastPoint = description.crystalPositions.size(); // the starting position
+    set<size_t> remainingCrystals;
+    for(size_t i = 0; i < description.crystalPositions.size(); ++i) {
+        remainingCrystals.insert(i);
+    }
+
+    size_t currentCost = 0;
+
+    expandPath(pathCombinations, remainingCrystals, lastPoint, currentCost, Direction::Left, description.maxMirrors());
+
+
+
+}
+void expandPath(const vector<vector<PathCombinations>> &pathCombinations, set<size_t> remainingCrystals, size_t lastPoint, size_t cost,
+                Direction lastDirection, unsigned maxCost)
+ {
+     if(remainingCrystals.empty()) {
+         cout << "SOlution found\n";
+         pathFound = true;
+     }
+
+    for(auto i: remainingCrystals) {
+        for(int j = 0; j< 4; ++j) { // in directions
+            size_t segmentCost = pathCombinations[lastPoint][i].tab[(size_t)lastDirection][j];
+            if(segmentCost + cost > maxCost) {
+                continue;
+            }
+            else {
+                auto newRemaining = remainingCrystals;
+                newRemaining.erase(i);
+                expandPath(pathCombinations, newRemaining, i, cost + segmentCost, ((Direction)j), maxCost);
+                if(pathFound) {
+                    cout << i << '\n';
+                    return;
+                }
+            }
+        }
+    }
+
 }
