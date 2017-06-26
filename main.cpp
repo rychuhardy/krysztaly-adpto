@@ -145,11 +145,14 @@ vector<Direction> getPossibleTurns(const MazeDescription &description, const Pos
 void combinePaths(MazeDescription &description, const vector<vector<PathCombinations>> &vector);
 
 void
-expandPath(const vector<vector<PathCombinations>> &pathCombinations, set<size_t> remainingCrystals, size_t lastPoint,
+expandPath(const vector<vector<PathCombinations>> &pathCombinations, const set<size_t>& remainingCrystals, size_t lastPoint,
            size_t cost,
-           Direction lastDirection, unsigned maxCost, MazeDescription& description);
+           Direction lastDirection, unsigned maxCost, MazeDescription& description, const vector<MirrorPos>& allMirrors);
 
 char mirrorType(Direction from, Direction to);
+
+bool willCollide(const vector<MirrorPos>& newMirrors, size_t start, unsigned long end,
+                 const MazeDescription &description);
 
 template<class T>
 vector<vector<T>> get2DVector(size_t width, size_t height) {
@@ -443,15 +446,16 @@ void combinePaths(MazeDescription &description, const vector <vector<PathCombina
     }
 
     size_t currentCost = 0;
+    vector<MirrorPos> allMirrors;
 
-    expandPath(pathCombinations, remainingCrystals, lastPoint, currentCost, Direction::Left, description.maxMirrors(), description);
+    expandPath(pathCombinations, remainingCrystals, lastPoint, currentCost, Direction::Left, description.maxMirrors(), description, allMirrors);
 
 
 }
 
-void expandPath(const vector<vector<PathCombinations>> &pathCombinations, set<size_t> remainingCrystals, size_t lastPoint,
+void expandPath(const vector<vector<PathCombinations>> &pathCombinations, const set<size_t>& remainingCrystals, size_t lastPoint,
            size_t cost,
-           Direction lastDirection, unsigned maxCost, MazeDescription& description) {
+           Direction lastDirection, unsigned maxCost, MazeDescription& description, const vector<MirrorPos>& allMirrors) {
     if (remainingCrystals.empty()) {
         pathFound = true;
     }
@@ -463,20 +467,85 @@ void expandPath(const vector<vector<PathCombinations>> &pathCombinations, set<si
             if (segmentCost + cost > maxCost) {
                 continue;
             } else {
-                auto newRemaining = remainingCrystals;
-                newRemaining.erase(i);
-                expandPath(pathCombinations, newRemaining, i, cost + segmentCost, ((Direction) j), maxCost, description);
-                if (pathFound) {
-#ifdef LOGBUILD
-                    cout << i << '\n';
-#endif //LOGBUILD
-                    for(const auto& mir: path.second) {
+
+                if(!willCollide(path.second, lastPoint, i, description)) {
+
+                    for (const auto &mir: path.second) {
                         description.maze[mir.position.row][mir.position.col] = mir.type;
                     }
-                    return;
+
+                    auto newRemaining = remainingCrystals;
+                    newRemaining.erase(i);
+
+//                auto newMirrors = allMirrors;
+//                newMirrors.insert(allMirrors.end(), path.second.begin(), path.second.end());
+
+                    expandPath(pathCombinations, newRemaining, i, cost + segmentCost, ((Direction) j), maxCost,
+                               description, allMirrors);
+                    if (pathFound) {
+#ifdef LOGBUILD
+                        cout << i << '\n';
+#endif //LOGBUILD
+                        //for(const auto& mir: path.second) {
+//                        description.maze[mir.position.row][mir.position.col] = mir.type;
+                        //}
+                        return;
+                    }
+
+                    for (const auto &mir: path.second) {
+                        description.maze[mir.position.row][mir.position.col] = Sym::Blank;
+                    }
                 }
             }
         }
     }
 
+}
+
+bool willCollide(const vector<MirrorPos>& newMirrors, size_t start, unsigned long end,
+                 const MazeDescription &description) {
+
+    const auto &startPos = start == description.crystalPositions.size() ? Position{1, 0} : description.crystalPositions[start];
+    const auto &endPos = description.crystalPositions[end];
+
+    for (int i = -1; i < (int)newMirrors.size(); ++i) {
+        const Position *currStart = nullptr, *currEnd = nullptr;
+        if (i == -1) {
+            currStart = &startPos;
+        } else {
+            currStart = &newMirrors[i].position;
+        }
+        if (i + 1 == (int)newMirrors.size()) {
+            currEnd = &endPos;
+        } else {
+            currEnd = &newMirrors[i + 1].position;
+        }
+
+        if (currStart->row == currEnd->row) {
+            if (currStart->col > currEnd->col) {
+                for (size_t k = currStart->col - 1; k > currEnd->col; --k) {
+                    if (description.maze[currStart->row][k] != Sym::Blank)
+                        return true;
+                }
+            } else {
+                for (size_t k = currStart->col + 1; k < currEnd->col; ++k) {
+                    if (description.maze[currStart->row][k] != Sym::Blank)
+                        return true;
+                }
+            }
+        } else {
+            if (currStart->row > currEnd->row) {
+                for (size_t k = currStart->row - 1; k > currEnd->row; --k) {
+                    if (description.maze[k][currStart->col] != Sym::Blank)
+                        return true;
+                }
+            } else {
+                for (size_t k = currStart->row + 1; k < currEnd->row; ++k) {
+                    if (description.maze[k][currStart->col] != Sym::Blank)
+                        return true;
+                }
+            }
+        }
+    }
+    return false;
 }
