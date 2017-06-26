@@ -282,7 +282,7 @@ char mirrorType(Direction from, Direction to) {
         case Direction::Right:
             return  to==Direction::Up ? Sym::Mirror135 : Sym::Mirror45;
     }
-    return 'x';
+    return 'x'; //dummy return all cases covered
 }
 
 vector<Direction> getPossibleTurns(const MazeDescription &description, const Position &position) {
@@ -320,7 +320,7 @@ Direction oppositeDirection(Direction direction) {
         case Direction::Right:
             return Direction::Left;
     }
-    return Direction::Up;
+    return Direction::Up; //dummy return all cases covered
 }
 
 bool needsTurning(Direction direction, Direction direction1) {
@@ -332,7 +332,7 @@ bool needsTurning(Direction direction, Direction direction1) {
         case Direction::Right:
             return direction1 == Direction::Up or direction1 == Direction::Down;
     }
-    return false;
+    return false; //dummy return all cases covered
 }
 
 Position advancePos(Position position, Direction direction) {
@@ -346,7 +346,7 @@ Position advancePos(Position position, Direction direction) {
         case Direction::Right:
             return {position.row, position.col + 1};
     }
-    return Position(-1, -1);
+    return Position(-1, -1); //dummy return all cases covered
 }
 
 void printSolution(const MazeDescription &mazeDescription) {
