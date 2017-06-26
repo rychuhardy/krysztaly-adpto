@@ -83,7 +83,7 @@ struct Path {
     Position current;
     vector<MirrorPos> mirrorsPoses;
 
-    Path(unsigned int mirrorsUsed, Direction direction, const Position &current, const vector<MirrorPos> &mirrorPoses = {})
+    Path(unsigned int mirrorsUsed, Direction direction, const Position &current, const vector<MirrorPos> &mirrorPoses = std::vector<MirrorPos>())
             : mirrorsUsed(mirrorsUsed),
               direction(direction),
               current(current),
@@ -282,7 +282,7 @@ char mirrorType(Direction from, Direction to) {
         case Direction::Right:
             return  to==Direction::Up ? Sym::Mirror135 : Sym::Mirror45;
     }
-    return Direction::Up;
+    return 'x';
 }
 
 vector<Direction> getPossibleTurns(const MazeDescription &description, const Position &position) {
@@ -332,7 +332,7 @@ bool needsTurning(Direction direction, Direction direction1) {
         case Direction::Right:
             return direction1 == Direction::Up or direction1 == Direction::Down;
     }
-    return Direction::Up;
+    return false;
 }
 
 Position advancePos(Position position, Direction direction) {
