@@ -191,7 +191,7 @@ vector<vector<PathCombinations>> findShortestPaths(const MazeDescription &descri
 
                     auto neighbours = getPathToNeighbours(current, description, isFieldCrystal);
                     for_each(neighbours.begin(), neighbours.end(), [&toVisit, &visited, &description] (const Path& path) mutable {
-                        if(not visited[path.current.row][path.current.col] and path.mirrorsUsed <= description.maxMirrors()) {
+                        if((not visited[path.current.row][path.current.col] or isCrystal(path.current, description)) and path.mirrorsUsed <= description.maxMirrors()) {
                             toVisit.push(path);
 //                            visited[path.current.row][path.current.col] = true;
                         }
