@@ -10,7 +10,7 @@
 using namespace std;
 
 
-#define LOGBUILD
+//#define LOGBUILD
 
 namespace Sym {
     static constexpr char Crystal = '*';
@@ -495,10 +495,17 @@ void combinePaths(MazeDescription &description, const vector<vector<PathCombinat
 }
 
 int checkForReusedMirrors(const MazeDescription& description, const vector<MirrorPos>& newMirrors) {
-    return count_if(newMirrors.cbegin(), newMirrors.cend(), [&description] (const MirrorPos& pos) {
+    int result = 0;
+    for_each(newMirrors.cbegin(), newMirrors.cend(), [&description, result] (const MirrorPos& pos)  mutable{
         auto sym = description.maze[pos.position.row][pos.position.col];
-        return sym == Sym::Mirror45 or sym == Sym::Mirror135;
-    }); 
+        if (sym == pos.type) {
+            ++result;
+        }
+        else if((sym xor pos.type) == (Sym::Mirror135 xor Sym::Mirror45)) {
+            result = -100000;
+        }
+    });
+    return result;
 }
 
 void expandPath(const vector<vector<PathCombinations>> &pathCombinations, const set<size_t>& remainingCrystals, size_t lastPoint,
@@ -522,8 +529,17 @@ void expandPath(const vector<vector<PathCombinations>> &pathCombinations, const 
 
                 if(!willCollide(path.second, lastPoint, i, description)) {
 
+                    vector<MirrorPos> reusedMirrorsVec;
+
                     for (const auto &mir: path.second) {
-                        description.maze[mir.position.row][mir.position.col] = mir.type;
+                        auto& type = description.maze[mir.position.row][mir.position.col];
+                        if(type == Sym::Blank) {
+                            type = mir.type;
+                        }
+                        else {
+                            reusedMirrorsVec.emplace_back(type, Position(mir.position.row, mir.position.col));
+                        }
+
                     }
 
                     auto newRemaining = remainingCrystals;
@@ -546,6 +562,9 @@ void expandPath(const vector<vector<PathCombinations>> &pathCombinations, const 
 
                     for (const auto &mir: path.second) {
                         description.maze[mir.position.row][mir.position.col] = Sym::Blank;
+                    }
+                    for (const auto& mir: reusedMirrorsVec) {
+                        description.maze[mir.position.row][mir.position.col] = mir.type;
                     }
                 }
             }
