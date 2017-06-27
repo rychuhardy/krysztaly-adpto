@@ -5,8 +5,12 @@
 #include <array>
 #include <climits>
 #include <set>
+#include <map>
 
 using namespace std;
+
+
+//#define LOGBUILD
 
 namespace Sym {
     static constexpr char Crystal = '*';
@@ -142,17 +146,19 @@ Direction oppositeDirection(Direction direction);
 
 vector<Direction> getPossibleTurns(const MazeDescription &description, const Position &position);
 
-void combinePaths(MazeDescription &description, const vector<vector<PathCombinations>> &vector);
+void combinePaths(MazeDescription &description, const vector<vector<PathCombinations>> &pathCombinations, const vector<int>& minCostForRemainingNodes);
 
 void
 expandPath(const vector<vector<PathCombinations>> &pathCombinations, const set<size_t>& remainingCrystals, size_t lastPoint,
            size_t cost,
-           Direction lastDirection, unsigned maxCost, MazeDescription& description, const vector<MirrorPos>& allMirrors);
+           Direction lastDirection, unsigned maxCost, MazeDescription& description, const vector<MirrorPos>& allMirrors, const vector<int>& minCostForRemainingNodes);
 
 char mirrorType(Direction from, Direction to);
 
 bool willCollide(const vector<MirrorPos>& newMirrors, size_t start, unsigned long end,
                  const MazeDescription &description);
+
+vector<int> calculateMinCostForRemainingNodes(const vector<vector<PathCombinations>> &shortestPaths, size_t howMuch);
 
 template<class T>
 vector<vector<T>> get2DVector(size_t width, size_t height) {
@@ -420,8 +426,8 @@ int main() {
         for(size_t j=0; j<shortestPaths[i].size(); ++j) {
             for(size_t k =0; k< 4; ++k) {
                 for(size_t l =0; l<4; ++l) {
-                    if(shortestPaths[i][j].tab[k][l] != UINT_MAX) {
-                        cout << "C1 " << i << " C2: " << j << " D1: " << directionToString(k) << " D2: " << directionToString(l) << " val: " << shortestPaths[i][j].tab[k][l] << endl;
+                    if(shortestPaths[i][j].tab[k][l].first != UINT_MAX) {
+                        cout << "C1 " << i << " C2: " << j << " D1: " << directionToString(k) << " D2: " << directionToString(l) << " val: " << shortestPaths[i][j].tab[k][l].first << endl;
                     }
                 }
             }
@@ -429,16 +435,43 @@ int main() {
     }
 #endif // LOGBUILD
 
-    combinePaths(mazeDescription, shortestPaths);
+    auto minCostForRemainingNodes = calculateMinCostForRemainingNodes(shortestPaths, mazeDescription.crystalPositions.size());
+    combinePaths(mazeDescription, shortestPaths, minCostForRemainingNodes);
 
     printSolution(mazeDescription);
 
     return 0;
 }
 
+vector<int> calculateMinCostForRemainingNodes(const vector<vector<PathCombinations>> &shortestPaths, size_t howMuch) {
+    map<pair<int, int>, int> minCostForNode;
+    vector<int> minCost;
+
+    for(size_t row = 0; row < shortestPaths.size(); ++row) {
+        for(size_t col = 0; col < shortestPaths[0].size(); ++col) {
+            for(int i = 0; i<4; ++i) {
+                for (int j = 0; j < 4; ++j) {
+                    if (shortestPaths[row][col].tab[i][j].first != UINT_MAX and (shortestPaths[row][col].tab[i][j].first < (size_t)minCostForNode[{row, col}] or not minCostForNode[{row, col}])) {
+                        minCostForNode[{row, col}] = shortestPaths[row][col].tab[i][j].first;
+                    }
+                }
+            }
+        }
+    }
+    minCost.resize(minCostForNode.size());
+    transform(minCostForNode.cbegin(), minCostForNode.cend(), minCost.begin(), [](const pair<pair<int, int>, int>& arg) {  return arg.second; });
+    partial_sort(minCost.begin(), next(minCost.begin(), howMuch), minCost.end());
+
+    minCost.resize(howMuch);
+    for(size_t i = 1; i < minCost.size(); ++i) {
+        minCost[i] += minCost[i-1];
+    }
+    return minCost;
+}
+
 bool pathFound;
 
-void combinePaths(MazeDescription &description, const vector <vector<PathCombinations>> &pathCombinations) {
+void combinePaths(MazeDescription &description, const vector<vector<PathCombinations>> &pathCombinations, const vector<int>& minCostForRemainingNodes) {
     size_t lastPoint = description.crystalPositions.size(); // the starting position
     set<size_t> remainingCrystals;
     for (size_t i = 0; i < description.crystalPositions.size(); ++i) {
@@ -448,14 +481,14 @@ void combinePaths(MazeDescription &description, const vector <vector<PathCombina
     size_t currentCost = 0;
     vector<MirrorPos> allMirrors;
 
-    expandPath(pathCombinations, remainingCrystals, lastPoint, currentCost, Direction::Left, description.maxMirrors(), description, allMirrors);
+    expandPath(pathCombinations, remainingCrystals, lastPoint, currentCost, Direction::Left, description.maxMirrors(), description, allMirrors, minCostForRemainingNodes);
 
 
 }
 
 void expandPath(const vector<vector<PathCombinations>> &pathCombinations, const set<size_t>& remainingCrystals, size_t lastPoint,
            size_t cost,
-           Direction lastDirection, unsigned maxCost, MazeDescription& description, const vector<MirrorPos>& allMirrors) {
+           Direction lastDirection, unsigned maxCost, MazeDescription& description, const vector<MirrorPos>& allMirrors, const vector<int>& minCostForRemainingNodes) {
     if (remainingCrystals.empty()) {
         pathFound = true;
     }
@@ -464,7 +497,9 @@ void expandPath(const vector<vector<PathCombinations>> &pathCombinations, const 
         for (int j = 0; j < 4; ++j) { // in directions
             auto path = pathCombinations[lastPoint][i].tab[(size_t) lastDirection][j];
             auto segmentCost = path.first;
-            if (segmentCost + cost > maxCost) {
+            // size() - 2 because we already included current crystal in segment cost
+            int minCostForRemaining = remainingCrystals.size() > 1 ? minCostForRemainingNodes[remainingCrystals.size() - 2] : 0;
+            if (segmentCost + cost + minCostForRemaining >  maxCost) {
                 continue;
             } else {
 
@@ -481,7 +516,7 @@ void expandPath(const vector<vector<PathCombinations>> &pathCombinations, const 
 //                newMirrors.insert(allMirrors.end(), path.second.begin(), path.second.end());
 
                     expandPath(pathCombinations, newRemaining, i, cost + segmentCost, ((Direction) j), maxCost,
-                               description, allMirrors);
+                               description, allMirrors, minCostForRemainingNodes);
                     if (pathFound) {
 #ifdef LOGBUILD
                         cout << i << '\n';
@@ -524,24 +559,24 @@ bool willCollide(const vector<MirrorPos>& newMirrors, size_t start, unsigned lon
         if (currStart->row == currEnd->row) {
             if (currStart->col > currEnd->col) {
                 for (size_t k = currStart->col - 1; k > currEnd->col; --k) {
-                    if (description.maze[currStart->row][k] != Sym::Blank)
+                    if (description.maze[currStart->row][k] != Sym::Blank and description.maze[currStart->row][k] != Sym::Crystal)
                         return true;
                 }
             } else {
                 for (size_t k = currStart->col + 1; k < currEnd->col; ++k) {
-                    if (description.maze[currStart->row][k] != Sym::Blank)
+                    if (description.maze[currStart->row][k] != Sym::Blank and description.maze[currStart->row][k] != Sym::Crystal)
                         return true;
                 }
             }
         } else {
             if (currStart->row > currEnd->row) {
                 for (size_t k = currStart->row - 1; k > currEnd->row; --k) {
-                    if (description.maze[k][currStart->col] != Sym::Blank)
+                    if (description.maze[k][currStart->col] != Sym::Blank and description.maze[k][currStart->col] != Sym::Crystal)
                         return true;
                 }
             } else {
                 for (size_t k = currStart->row + 1; k < currEnd->row; ++k) {
-                    if (description.maze[k][currStart->col] != Sym::Blank)
+                    if (description.maze[k][currStart->col] != Sym::Blank and description.maze[k][currStart->col] != Sym::Crystal)
                         return true;
                 }
             }
