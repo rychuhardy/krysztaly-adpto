@@ -10,7 +10,7 @@
 using namespace std;
 
 
-//#define LOGBUILD
+#define LOGBUILD
 
 namespace Sym {
     static constexpr char Crystal = '*';
@@ -232,8 +232,8 @@ vector<vector<PathCombinations>> findShortestPaths(const MazeDescription &descri
                 auto neighbours = getPathToNeighbours(current, description, isFieldCrystal);
                 for_each(neighbours.begin(), neighbours.end(),
                          [&toVisit, &visited, &description](const Path &path) mutable {
-                             if ((not visited[path.current.row][path.current.col] or
-                                  isCrystal(path.current, description)) and
+                             if (/*(not visited[path.current.row][path.current.col] or
+                                  isCrystal(path.current, description)) and */
                                  path.mirrorsUsed <= description.maxMirrors()) {
                                  toVisit.push(path);
                              }
@@ -452,8 +452,15 @@ vector<int> calculateMinCostForRemainingNodes(const vector<vector<PathCombinatio
             for(int i = 0; i<4; ++i) {
                 for (int j = 0; j < 4; ++j) {
 		            auto pr = make_pair(row, col);
-                    if (shortestPaths[row][col].tab[i][j].first != UINT_MAX and (shortestPaths[row][col].tab[i][j].first < (size_t)minCostForNode[pr] or not minCostForNode[pr])) {
+                    if (shortestPaths[row][col].tab[i][j].first != UINT_MAX) {
+                    try {
+                        auto& val = minCostForNode.at(pr);
+                        if (shortestPaths[row][col].tab[i][j].first < (size_t)val) {
+                            val = shortestPaths[row][col].tab[i][j].first;
+                        }
+                    } catch(out_of_range&) {
                         minCostForNode[pr] = shortestPaths[row][col].tab[i][j].first;
+                    }
                     }
                 }
             }
