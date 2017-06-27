@@ -487,6 +487,13 @@ void combinePaths(MazeDescription &description, const vector<vector<PathCombinat
 
 }
 
+int checkForReusedMirrors(const MazeDescription& description, const vector<MirrorPos>& newMirrors) {
+    return count_if(newMirrors.cbegin(), newMirrors.cend(), [&description] (const MirrorPos& pos) {
+        auto sym = description.maze[pos.position.row][pos.position.col];
+        return sym == Sym::Mirror45 or sym == Sym::Mirror135;
+    }); 
+}
+
 void expandPath(const vector<vector<PathCombinations>> &pathCombinations, const set<size_t>& remainingCrystals, size_t lastPoint,
            size_t cost,
            Direction lastDirection, unsigned maxCost, MazeDescription& description, const vector<MirrorPos>& allMirrors, const vector<int>& minCostForRemainingNodes) {
@@ -498,6 +505,8 @@ void expandPath(const vector<vector<PathCombinations>> &pathCombinations, const 
         for (int j = 0; j < 4; ++j) { // in directions
             auto path = pathCombinations[lastPoint][i].tab[(size_t) lastDirection][j];
             auto segmentCost = path.first;
+            int reusedMirrors = checkForReusedMirrors(description, path.second);
+            segmentCost -= reusedMirrors;
             // size() - 2 because we already included current crystal in segment cost
             int minCostForRemaining = remainingCrystals.size() > 1 ? minCostForRemainingNodes[remainingCrystals.size() - 2] : 0;
             if (segmentCost + cost + minCostForRemaining >  maxCost) {
@@ -537,6 +546,8 @@ void expandPath(const vector<vector<PathCombinations>> &pathCombinations, const 
     }
 
 }
+
+
 
 bool willCollide(const vector<MirrorPos>& newMirrors, size_t start, unsigned long end,
                  const MazeDescription &description) {
