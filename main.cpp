@@ -451,8 +451,9 @@ vector<int> calculateMinCostForRemainingNodes(const vector<vector<PathCombinatio
         for(size_t col = 0; col < shortestPaths[0].size(); ++col) {
             for(int i = 0; i<4; ++i) {
                 for (int j = 0; j < 4; ++j) {
-                    if (shortestPaths[row][col].tab[i][j].first != UINT_MAX and (shortestPaths[row][col].tab[i][j].first < (size_t)minCostForNode[{row, col}] or not minCostForNode[{row, col}])) {
-                        minCostForNode[{row, col}] = shortestPaths[row][col].tab[i][j].first;
+		            auto pr = make_pair(row, col);
+                    if (shortestPaths[row][col].tab[i][j].first != UINT_MAX and (shortestPaths[row][col].tab[i][j].first < (size_t)minCostForNode[pr] or not minCostForNode[pr])) {
+                        minCostForNode[pr] = shortestPaths[row][col].tab[i][j].first;
                     }
                 }
             }
