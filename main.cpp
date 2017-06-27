@@ -6,6 +6,7 @@
 #include <climits>
 #include <set>
 #include <map>
+#include <exception>
 
 using namespace std;
 
@@ -458,7 +459,7 @@ vector<int> calculateMinCostForRemainingNodes(const vector<vector<PathCombinatio
                         if (shortestPaths[row][col].tab[i][j].first < (size_t)val) {
                             val = shortestPaths[row][col].tab[i][j].first;
                         }
-                    } catch(out_of_range&) {
+                    } catch(...) {
                         minCostForNode[pr] = shortestPaths[row][col].tab[i][j].first;
                     }
                     }
