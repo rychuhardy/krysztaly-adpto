@@ -211,13 +211,13 @@ vector<vector<PathCombinations>> findShortestPaths(const MazeDescription &descri
 
         for (auto direction: startDirections) {
             priority_queue<Path, vector<Path>, greater<Path>> toVisit;
-            auto visited = get2DVector<bool>(description.getWidth(), description.getHeight());
+            auto visited = get2DVector<array<bool, 4>>(description.getWidth(), description.getHeight());
 
             toVisit.push(Path{0, direction, start});
             while (!toVisit.empty()) {
                 auto current = toVisit.top();
                 toVisit.pop();
-                visited[current.current.row][current.current.col] = true;
+                visited[current.current.row][current.current.col][(size_t)current.direction] = true;
 
                 bool isFieldCrystal = isCrystal(current.current, description);
                 if (current.current != start and isFieldCrystal) {
@@ -232,8 +232,8 @@ vector<vector<PathCombinations>> findShortestPaths(const MazeDescription &descri
                 auto neighbours = getPathToNeighbours(current, description, isFieldCrystal);
                 for_each(neighbours.begin(), neighbours.end(),
                          [&toVisit, &visited, &description](const Path &path) mutable {
-                             if (/*(not visited[path.current.row][path.current.col] or
-                                  isCrystal(path.current, description)) and */
+                             if ((not visited[path.current.row][path.current.col][(size_t)path.direction] or
+                                  isCrystal(path.current, description)) and
                                  path.mirrorsUsed <= description.maxMirrors()) {
                                  toVisit.push(path);
                              }
