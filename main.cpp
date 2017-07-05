@@ -65,7 +65,7 @@ enum class Direction {
 
 struct PathCombinations {
     static constexpr size_t Size = 4;
-    using Path = pair<unsigned, vector<MirrorPos>>;
+    typedef  pair<unsigned, vector<MirrorPos>> Path;
     vector<Path> tab[Size][Size];
 
 };
@@ -99,8 +99,8 @@ struct SearchedPath {
 
 struct MazeDescription {
     vector<vector<char>> maze;
-    const vector<Position> crystalPositions;
-    const unsigned mirrors;
+    vector<Position> crystalPositions;
+    unsigned mirrors;
 
     mutable bool hasEndCrystal;
     mutable Position endCrystal;
