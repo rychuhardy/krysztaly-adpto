@@ -161,10 +161,10 @@ vector<int> calculateMinCostForRemainingNodes(const vector<vector<PathCombinatio
 bool isCrystalEndingCrystal(const vector<Direction>& out);
 
 template<class T>
-vector<vector<T>> get2DVector(size_t width, size_t height) {
+vector<vector<T>> get2DVector(size_t width, size_t height, T value = T()) {
     vector<vector<T>> tmp(height);
-    for_each(tmp.begin(), tmp.end(), [width](vector<T> &arg) {
-        arg.resize(width);
+    for_each(tmp.begin(), tmp.end(), [width, &value](vector<T> &arg) {
+        arg.resize(width, value);
     });
     return tmp;
 }
@@ -197,7 +197,7 @@ vector<Direction> getPossibleStartDirections(const MazeDescription &mazeDescript
 vector<vector<PathCombinations>> findShortestPaths(const MazeDescription &description) {
     auto size = description.crystalPositions.size() + 1; // includes starting point as the last index
     auto shortestPaths = get2DVector<PathCombinations>(size, size);
-
+    //array<size_t, 4> initStub = {};
 
     for (size_t i = 0; i < size; ++i) {
         Position start(-1, -1);
@@ -212,13 +212,13 @@ vector<vector<PathCombinations>> findShortestPaths(const MazeDescription &descri
 
         for (auto direction: startDirections) {
             priority_queue<SearchedPath, vector<SearchedPath>, greater<SearchedPath>> toVisit;
-            auto visited = get2DVector<array<int, 4>>(description.getWidth(), description.getHeight());
+            auto visited = get2DVector<array<bool, 4>>(description.getWidth(), description.getHeight(), /*initStub*/);
 
             toVisit.push(SearchedPath{0, direction, start});
             while (!toVisit.empty()) {
                 auto current = toVisit.top();
                 toVisit.pop();
-                visited[current.current.row][current.current.col][(size_t)current.direction] += 1;
+                visited[current.current.row][current.current.col][(size_t)current.direction] = true;//current.mirrorsPoses.size();
 
                 bool isFieldCrystal = isCrystal(current.current, description);
                 if (current.current != start and isFieldCrystal) {
@@ -229,12 +229,13 @@ vector<vector<PathCombinations>> findShortestPaths(const MazeDescription &descri
 //                        paths.second = current.mirrorsPoses;
 //                    }
                     paths.emplace_back(current.mirrorsUsed, current.mirrorsPoses);
+                    continue; // we don't need paths that contain crystals
                 }
 
                 auto neighbours = getPathToNeighbours(current, description, isFieldCrystal);
                 for_each(neighbours.begin(), neighbours.end(),
                          [&toVisit, &visited, &description](const SearchedPath &path) mutable {
-                             if ((visited[path.current.row][path.current.col][(size_t)path.direction] < 1 or
+                             if ((not visited[path.current.row][path.current.col][(size_t)path.direction] or
                                   isCrystal(path.current, description)) and
                                  path.mirrorsUsed <= description.maxMirrors()) {
                                  toVisit.push(path);
